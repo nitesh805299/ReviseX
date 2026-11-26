@@ -81,6 +81,15 @@ export async function uploadAssetFile({ buffer, mimeType, originalName, projectI
     };
   }
 
+  // In serverless environments (e.g. Vercel) without S3 configured, store as data URL
+  if (process.env.VERCEL) {
+    return {
+      storageKey,
+      url: `data:${mimeType};base64,${buffer.toString('base64')}`,
+      filename: originalName || `${randomId}${ext}`,
+    };
+  }
+
   // Safe local disk fallback for development & testing
   const fullPath = path.join(LOCAL_UPLOAD_DIR, storageKey);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });

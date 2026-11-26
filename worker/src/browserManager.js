@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { chromium } from 'playwright';
-import { VIEWPORTS } from '../../shared/patchEngine.js';
+import { VIEWPORTS } from './shared/patchEngine.js';
 import { validateExternalUrl, SsrfError } from './ssrfGuard.js';
 import { detectCompatibilityIssues, extractPageSnapshot } from './domExtractor.js';
 import { replayPatchesInPlaywright } from './patchReplayer.js';

@@ -1,4 +1,4 @@
-import { ALLOWED_STYLE_PROPERTIES, CHANGE_TYPES, matchFingerprint } from '../../shared/patchEngine.js';
+import { ALLOWED_STYLE_PROPERTIES, CHANGE_TYPES, matchFingerprint } from './shared/patchEngine.js';
 
 /**
  * Replays saved change patches onto the live Playwright page DOM.

@@ -10,7 +10,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { browserClient } from '../services/browserClient.js';
 import { validateProjectUrl } from '../services/ssrfService.js';
-import { VIEWPORTS } from '../../../shared/patchEngine.js';
+import { VIEWPORTS } from '../shared/patchEngine.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -147,6 +147,25 @@ router.get('/sessions/:id', async (req, res, next) => {
   }
 });
 
+async function callWithRehydrate(session, patches, workerFn) {
+  try {
+    return await workerFn();
+  } catch (err) {
+    if (err.statusCode === 404) {
+      await browserClient.createSession({
+        sessionId: session.workerSessionId,
+        url: session.currentUrl,
+        viewport: session.viewport,
+        patches,
+        allowLoopbackForTest:
+          process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_LOOPBACK === 'true',
+      });
+      return workerFn();
+    }
+    throw err;
+  }
+}
+
 router.post('/sessions/:id/navigate', validateBody(navigateSchema), async (req, res, next) => {
   try {
     const session = await getOwnedSession(req.params.id, req.user._id);
@@ -155,10 +174,12 @@ router.post('/sessions/:id/navigate', validateBody(navigateSchema), async (req, 
     });
 
     const pageChanges = await Change.find({ projectId: session.projectId, pageUrl: validatedUrl }).lean();
-    const workerResult = await browserClient.navigate(session.workerSessionId, {
-      url: validatedUrl,
-      patches: pageChanges,
-    });
+    const workerResult = await callWithRehydrate(session, pageChanges, () =>
+      browserClient.navigate(session.workerSessionId, {
+        url: validatedUrl,
+        patches: pageChanges,
+      })
+    );
 
     const vp = VIEWPORTS[session.viewport] || VIEWPORTS.desktop;
     const pageDoc = await Page.findOneAndUpdate(
@@ -204,10 +225,12 @@ router.post('/sessions/:id/viewport', validateBody(viewportSchema), async (req, 
       pageUrl: session.currentUrl,
     }).lean();
 
-    const result = await browserClient.setViewport(session.workerSessionId, {
-      viewport,
-      patches: pageChanges,
-    });
+    const result = await callWithRehydrate(session, pageChanges, () =>
+      browserClient.setViewport(session.workerSessionId, {
+        viewport,
+        patches: pageChanges,
+      })
+    );
 
     session.viewport = viewport;
     await session.save();
@@ -226,7 +249,9 @@ router.post('/sessions/:id/replay', async (req, res, next) => {
       pageUrl: session.currentUrl,
     }).sort({ createdAt: 1 });
 
-    const result = await browserClient.replayPatches(session.workerSessionId, changes);
+    const result = await callWithRehydrate(session, changes, () =>
+      browserClient.replayPatches(session.workerSessionId, changes)
+    );
 
     const unresolvedMap = new Map(
       (result.replayResult?.unresolved || []).map((u) => [String(u.changeId), u.reason])
