@@ -1,0 +1,75 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - internal
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - WORKER_PORT=4001
+      - WORKER_SHARED_SECRET=${WORKER_SHARED_SECRET:-change-me-worker-secret}
+      - REDIS_URL=redis://redis:6379
+      - WORKER_MAX_SESSIONS=8
+    mem_limit: 2g
+    cpus: 2.0
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - redis
+    networks:
+      - internal
+      - egress
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - MONGO_URI=mongodb://mongo:27017/revisex
+      - REDIS_URL=redis://redis:6379
+      - USE_BULLMQ=true
+      - WORKER_URL=http://worker:4001
+      - WORKER_SHARED_SECRET=${WORKER_SHARED_SECRET:-change-me-worker-secret}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL:-}
+    depends_on:
+      - mongo
+      - redis
+      - worker
+    networks:
+      - internal
+      - egress
+
+volumes:
+  mongo_data:
+
+networks:
+  internal:
+    internal: true
+  egress:
+    driver: bridge

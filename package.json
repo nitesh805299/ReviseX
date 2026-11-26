@@ -1,0 +1,16 @@
+{
+  "name": "revisex",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ReviseX - No-code visual website editing and collaboration platform",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:worker": "npm --prefix worker run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test": "npm run test:worker && npm run test:backend",
+    "test:worker": "npm --prefix worker test",
+    "test:backend": "npm --prefix backend test",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}
