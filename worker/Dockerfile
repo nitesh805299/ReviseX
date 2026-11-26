@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY shared ./shared
 COPY worker/package*.json ./worker/
-RUN npm --prefix worker install --omit=dev
+RUN npm --prefix worker install --omit=dev && npx --prefix worker playwright install chromium
 
 COPY worker ./worker
 

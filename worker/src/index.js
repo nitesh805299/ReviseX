@@ -161,7 +161,7 @@ export function createWorkerApp(sessionManager = new BrowserSessionManager()) {
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop());
 if (isMain) {
-  const port = Number(process.env.WORKER_PORT || 4001);
+  const port = Number(process.env.WORKER_PORT || process.env.PORT || 4001);
   const sessionManager = new BrowserSessionManager();
   const { app } = createWorkerApp(sessionManager);
   const queueHandle = startQueueConsumer(sessionManager);
