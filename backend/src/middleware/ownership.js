@@ -1,10 +1,10 @@
+import mongoose from 'mongoose';
 import { Project } from '../models/Project.js';
-import { isValidId } from '../utils/ids.js';
 
 export async function requireProjectOwner(req, res, next) {
   try {
     const projectId = req.params.id || req.params.projectId || req.body?.projectId;
-    if (!projectId || !isValidId(projectId)) {
+    if (!projectId || !mongoose.isValidObjectId(projectId)) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 

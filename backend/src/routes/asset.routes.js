@@ -1,10 +1,10 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import multer from 'multer';
 import { Asset } from '../models/Asset.js';
 import { Project } from '../models/Project.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireProjectOwner } from '../middleware/ownership.js';
-import { isValidId } from '../utils/ids.js';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
@@ -30,7 +30,7 @@ const upload = multer({
 router.post('/assets/upload', requireAuth, upload.single('file'), async (req, res, next) => {
   try {
     const projectId = req.body?.projectId;
-    if (!projectId || !isValidId(projectId)) {
+    if (!projectId || !mongoose.isValidObjectId(projectId)) {
       return res.status(400).json({ error: 'Valid projectId is required.' });
     }
     const project = await Project.findById(projectId);
@@ -78,7 +78,7 @@ router.get('/projects/:id/assets', requireAuth, requireProjectOwner, async (req,
 router.delete('/assets/:assetId', requireAuth, async (req, res, next) => {
   try {
     const { assetId } = req.params;
-    if (!isValidId(assetId)) {
+    if (!mongoose.isValidObjectId(assetId)) {
       return res.status(400).json({ error: 'Invalid asset ID' });
     }
     const asset = await Asset.findById(assetId);

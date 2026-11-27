@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import express from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Project } from '../models/Project.js';
 import { Page } from '../models/Page.js';
@@ -10,7 +11,6 @@ import { validateBody } from '../middleware/validate.js';
 import { browserClient } from '../services/browserClient.js';
 import { validateProjectUrl } from '../services/ssrfService.js';
 import { VIEWPORTS } from '../shared/patchEngine.js';
-import { isValidId } from '../utils/ids.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -41,7 +41,7 @@ const actionSchema = z.object({
 });
 
 async function getOwnedSession(sessionId, userId) {
-  if (!isValidId(sessionId)) {
+  if (!mongoose.isValidObjectId(sessionId)) {
     const err = new Error('Invalid session ID');
     err.statusCode = 400;
     throw err;
@@ -63,7 +63,7 @@ async function getOwnedSession(sessionId, userId) {
 router.post('/sessions', validateBody(createSessionSchema), async (req, res, next) => {
   try {
     const { projectId, url, viewport, allowLoopbackForTest } = req.validatedBody;
-    if (!isValidId(projectId)) {
+    if (!mongoose.isValidObjectId(projectId)) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
     const project = await Project.findById(projectId);

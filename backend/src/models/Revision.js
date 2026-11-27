@@ -1,20 +1,34 @@
-import { BaseModel } from './BaseModel.js';
+import mongoose from 'mongoose';
 
-export class Revision extends BaseModel {
-  static tableName = 'revisions';
-  static columns = [
-    '_id',
-    'projectId',
-    'revisionNumber',
-    'label',
-    'changes',
-    'createdBy',
-    'createdAt',
-    'updatedAt',
-  ];
-  static jsonFields = ['changes'];
-  static defaults = {
-    label: '',
-    changes: [],
-  };
-}
+const revisionSchema = new mongoose.Schema(
+  {
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
+      index: true,
+    },
+    revisionNumber: {
+      type: Number,
+      required: true,
+    },
+    label: {
+      type: String,
+      default: '',
+    },
+    changes: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+revisionSchema.index({ projectId: 1, revisionNumber: -1 }, { unique: true });
+
+export const Revision = mongoose.model('Revision', revisionSchema);
