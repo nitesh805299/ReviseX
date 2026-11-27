@@ -1,47 +1,28 @@
-import mongoose from 'mongoose';
+import { BaseModel } from './BaseModel.js';
 
-const pageSchema = new mongoose.Schema(
-  {
-    projectId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Project',
-      required: true,
-      index: true,
-    },
-    originalUrl: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    title: {
-      type: String,
-      default: '',
-    },
-    viewport: {
-      preset: { type: String, enum: ['desktop', 'tablet', 'mobile'], default: 'desktop' },
-      width: { type: Number, default: 1440 },
-      height: { type: Number, default: 900 },
-    },
-    snapshotHtml: {
-      type: String,
-      default: '',
-    },
-    elements: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-    },
-    layers: {
-      type: [mongoose.Schema.Types.Mixed],
-      default: [],
-    },
-    navLinks: {
-      type: [mongoose.Schema.Types.Mixed],
-      default: [],
-    },
-  },
-  { timestamps: true }
-);
-
-pageSchema.index({ projectId: 1, originalUrl: 1 }, { unique: true });
-
-export const Page = mongoose.model('Page', pageSchema);
+export class Page extends BaseModel {
+  static tableName = 'pages';
+  static columns = [
+    '_id',
+    'projectId',
+    'originalUrl',
+    'title',
+    'viewport',
+    'snapshotHtml',
+    'elements',
+    'layers',
+    'navLinks',
+    'createdAt',
+    'updatedAt',
+  ];
+  static jsonFields = ['viewport', 'elements', 'layers', 'navLinks'];
+  static upsertKeys = ['projectId', 'originalUrl'];
+  static defaults = {
+    title: '',
+    viewport: { preset: 'desktop', width: 1440, height: 900 },
+    snapshotHtml: '',
+    elements: {},
+    layers: [],
+    navLinks: [],
+  };
+}

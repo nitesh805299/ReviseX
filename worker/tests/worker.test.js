@@ -58,6 +58,33 @@ describe('Worker Browser Rendering & Patch Replay POC', () => {
         res.end('<html><body><h1>About Us</h1><p>Second page</p></body></html>');
         return;
       }
+      if (req.url === '/login') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+            <head><title>Login</title></head>
+            <body style="margin:0;padding:20px;">
+              <form onsubmit="event.preventDefault(); if (document.getElementById('pwd').value === 'secret123') { document.cookie = 'auth=1'; window.location.href = '/dashboard'; }">
+                <input id="pwd" type="password" style="position:fixed;left:20px;top:20px;width:220px;height:36px;" />
+                <button id="login-btn" type="submit" style="position:fixed;left:20px;top:70px;width:120px;height:36px;">Sign In</button>
+              </form>
+            </body>
+          </html>
+        `);
+        return;
+      }
+      if (req.url === '/dashboard') {
+        const hasAuth = (req.headers.cookie || '').includes('auth=1');
+        if (!hasAuth) {
+          res.writeHead(401, { 'Content-Type': 'text/html' });
+          res.end('<html><body>Unauthorized</body></html>');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><head><title>Dashboard</title></head><body><h1 id="dash-title">Post-Login Desktop</h1></body></html>');
+        return;
+      }
       res.writeHead(200, {
         'Content-Type': 'text/html',
         'X-Frame-Options': 'DENY',
@@ -163,5 +190,28 @@ describe('Worker Browser Rendering & Patch Replay POC', () => {
 
     await sessionManager.closeSession('poc-session-1');
     expect(sessionManager.getSessionStatus('poc-session-1')).toBeNull();
+  }, 30000);
+
+  it('supports interactive live login (click, type, press) and captures post-login page snapshot', async () => {
+    await sessionManager.createSession({
+      sessionId: 'login-session-1',
+      url: `${fixtureUrl}/login`,
+      viewport: 'desktop',
+      allowLoopbackForTest: true,
+    });
+
+    // Click password input, type password, press Enter to log in
+    await sessionManager.remoteAction('login-session-1', { type: 'click', x: 80, y: 38 });
+    await sessionManager.remoteAction('login-session-1', { type: 'type', text: 'secret123' });
+    const afterLogin = await sessionManager.remoteAction('login-session-1', { type: 'press', key: 'Enter' });
+
+    expect(afterLogin.url).toBe(`${fixtureUrl}/dashboard`);
+
+    const captured = await sessionManager.captureCurrentPage('login-session-1', []);
+    expect(captured.url).toBe(`${fixtureUrl}/dashboard`);
+    expect(captured.title).toBe('Dashboard');
+    expect(captured.snapshotHtml).toContain('Post-Login Desktop');
+
+    await sessionManager.closeSession('login-session-1');
   }, 30000);
 });

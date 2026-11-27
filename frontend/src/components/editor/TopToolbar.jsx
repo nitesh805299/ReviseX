@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Eye,
+  Globe,
   Loader2,
   Monitor,
   MousePointerClick,
@@ -12,6 +13,7 @@ import {
   Save,
   Share2,
   Smartphone,
+  Sparkles,
   Tablet,
   Undo2,
 } from 'lucide-react';
@@ -26,16 +28,21 @@ export function TopToolbar({ onOpenShare }) {
     redoStack,
     viewport,
     mode,
+    compareView,
     viewMode,
+    activePageUrl,
     undo,
     redo,
     setViewport,
     setMode,
+    setCompareView,
     setViewMode,
     savePatchesNow,
     updateProjectName,
     patches,
   } = useEditorStore();
+
+  const pagePatchCount = patches.filter((p) => !p.pageUrl || p.pageUrl === activePageUrl).length;
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -165,26 +172,73 @@ export function TopToolbar({ onOpenShare }) {
         </div>
       </div>
 
-      {/* Right controls: Edit/Preview Toggle, Live Stream, Share */}
+      {/* Right controls: Original/Edited Compare, Live Stream, Edit/Preview Toggle, Share */}
       <div className="flex items-center gap-2">
+        <div
+          className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/80"
+          role="group"
+          aria-label="Compare Original and Edited Website"
+        >
+          <button
+            type="button"
+            onClick={() => setCompareView('original')}
+            title="View original website before any edits"
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition ${
+              compareView === 'original'
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Original</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCompareView('edited')}
+            title="View edited website with your changes applied"
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition ${
+              compareView === 'edited'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Edited</span>
+            {pagePatchCount > 0 && (
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
+                  compareView === 'edited'
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {pagePatchCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         <button
+          type="button"
           onClick={() => setViewMode(viewMode === 'dom' ? 'stream' : 'dom')}
-          title="Toggle between interactive DOM canvas and live Chromium frame stream"
-          className={`hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition ${
+          title="Switch to Live Interactive Browser to log in, click buttons, or fill forms"
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition ${
             viewMode === 'stream'
-              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
           <Radio className="w-3.5 h-3.5" />
-          {viewMode === 'stream' ? 'Live Stream' : 'DOM Canvas'}
+          <span className="hidden sm:inline">
+            {viewMode === 'stream' ? 'Live Login (On)' : 'Live Login'}
+          </span>
         </button>
 
         <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/80">
           <button
             onClick={() => setMode('edit')}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition ${
-              mode === 'edit'
+              mode === 'edit' && compareView === 'edited'
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}

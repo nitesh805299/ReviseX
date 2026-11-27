@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import express from 'express';
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { Share } from '../models/Share.js';
@@ -11,6 +10,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireProjectOwner } from '../middleware/ownership.js';
 import { validateBody } from '../middleware/validate.js';
 import { env } from '../config/env.js';
+import { isValidId } from '../utils/ids.js';
 
 const router = express.Router();
 
@@ -178,7 +178,7 @@ router.all('/shares/:token/mutate', (_req, res) => {
 router.delete('/shares/:shareId', requireAuth, async (req, res, next) => {
   try {
     const { shareId } = req.params;
-    if (!mongoose.isValidObjectId(shareId)) {
+    if (!isValidId(shareId)) {
       return res.status(400).json({ error: 'Invalid share ID' });
     }
 

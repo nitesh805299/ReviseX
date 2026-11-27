@@ -1,5 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Change } from '../models/Change.js';
 import { Project } from '../models/Project.js';
@@ -7,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireProjectOwner } from '../middleware/ownership.js';
 import { validateBody } from '../middleware/validate.js';
 import { getIO } from '../services/socketService.js';
+import { isValidId } from '../utils/ids.js';
 
 const router = express.Router();
 
@@ -53,7 +53,7 @@ router.post('/projects/:id/changes', requireAuth, requireProjectOwner, validateB
       const docs = body.changes.map((c) => ({
         ...c,
         projectId,
-        pageId: c.pageId && mongoose.isValidObjectId(c.pageId) ? c.pageId : null,
+        pageId: c.pageId && isValidId(c.pageId) ? c.pageId : null,
       }));
       const created = docs.length > 0 ? await Change.insertMany(docs) : [];
       const changesCount = await refreshProjectChangeCount(projectId);
@@ -65,7 +65,7 @@ router.post('/projects/:id/changes', requireAuth, requireProjectOwner, validateB
     const change = await Change.create({
       ...body,
       projectId,
-      pageId: body.pageId && mongoose.isValidObjectId(body.pageId) ? body.pageId : null,
+      pageId: body.pageId && isValidId(body.pageId) ? body.pageId : null,
     });
     const changesCount = await refreshProjectChangeCount(projectId);
 
@@ -88,7 +88,7 @@ router.get('/projects/:id/changes', requireAuth, requireProjectOwner, async (req
 router.patch('/changes/:changeId', requireAuth, validateBody(updateChangeSchema), async (req, res, next) => {
   try {
     const { changeId } = req.params;
-    if (!mongoose.isValidObjectId(changeId)) {
+    if (!isValidId(changeId)) {
       return res.status(400).json({ error: 'Invalid change ID' });
     }
 
@@ -121,7 +121,7 @@ router.patch('/changes/:changeId', requireAuth, validateBody(updateChangeSchema)
 router.delete('/changes/:changeId', requireAuth, async (req, res, next) => {
   try {
     const { changeId } = req.params;
-    if (!mongoose.isValidObjectId(changeId)) {
+    if (!isValidId(changeId)) {
       return res.status(400).json({ error: 'Invalid change ID' });
     }
 

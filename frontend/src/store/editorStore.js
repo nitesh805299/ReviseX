@@ -17,9 +17,11 @@ export const useEditorStore = create((set, get) => ({
   navLinks: [],
   session: null,
   sessionLoading: false,
+  captureLoading: false,
   sessionError: null,
 
   mode: 'edit', // 'edit' | 'preview'
+  compareView: 'edited', // 'edited' | 'original'
   viewMode: 'dom', // 'dom' | 'stream'
   viewport: 'desktop', // 'desktop' | 'tablet' | 'mobile'
   rightTab: 'inspector', // 'inspector' | 'history'
@@ -47,8 +49,10 @@ export const useEditorStore = create((set, get) => ({
       navLinks: [],
       session: null,
       sessionLoading: false,
+      captureLoading: false,
       sessionError: null,
       selectedElement: null,
+      compareView: 'edited',
       patches: [],
       undoStack: [],
       redoStack: [],
@@ -153,6 +157,38 @@ export const useEditorStore = create((set, get) => ({
     }
   },
 
+  captureCurrentPage: async () => {
+    const { session, project } = get();
+    if (!session) return;
+    set({ captureLoading: true, sessionError: null, selectedElement: null });
+    try {
+      const { data } = await api.post(`/browser/sessions/${session._id}/capture`);
+      set({
+        session: data.session,
+        activePageId: data.page?._id,
+        activePageUrl: data.page?.originalUrl || data.session?.currentUrl || get().activePageUrl,
+        snapshotHtml: data.snapshotHtml,
+        layers: data.layers || [],
+        navLinks: data.navLinks || [],
+        streamFrame: data.thumbnail || null,
+        captureLoading: false,
+        viewMode: 'dom',
+        compareView: 'edited',
+        mode: 'edit',
+      });
+      if (project) {
+        const { data: refreshed } = await api.get(`/projects/${project._id}`);
+        set({ pages: refreshed.pages || [] });
+      }
+    } catch (err) {
+      set({
+        captureLoading: false,
+        sessionError:
+          err.response?.data?.error || 'Could not capture the current page for editing.',
+      });
+    }
+  },
+
   setViewport: async (viewport) => {
     set({ viewport });
     const { session } = get();
@@ -166,11 +202,24 @@ export const useEditorStore = create((set, get) => ({
     }
   },
 
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) =>
+    set((state) => ({
+      mode,
+      compareView: mode === 'edit' ? 'edited' : state.compareView,
+    })),
+  setCompareView: (compareView) =>
+    set((state) => ({
+      compareView,
+      viewMode: state.viewMode === 'stream' ? 'dom' : state.viewMode,
+    })),
   setViewMode: (viewMode) => set({ viewMode }),
   setRightTab: (rightTab) => set({ rightTab }),
   setSelectedElement: (selectedElement) => set({ selectedElement }),
-  setStreamFrame: (streamFrame) => set({ streamFrame }),
+  setStreamFrame: (streamFrame, url) =>
+    set((state) => ({
+      streamFrame,
+      activePageUrl: url && state.viewMode === 'stream' ? url : state.activePageUrl,
+    })),
 
   updateProjectName: async (name) => {
     const { project } = get();

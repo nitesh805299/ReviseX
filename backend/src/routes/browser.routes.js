@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import express from 'express';
-import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Project } from '../models/Project.js';
 import { Page } from '../models/Page.js';
@@ -11,6 +10,7 @@ import { validateBody } from '../middleware/validate.js';
 import { browserClient } from '../services/browserClient.js';
 import { validateProjectUrl } from '../services/ssrfService.js';
 import { VIEWPORTS } from '../shared/patchEngine.js';
+import { isValidId } from '../utils/ids.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -31,15 +31,17 @@ const viewportSchema = z.object({
 });
 
 const actionSchema = z.object({
-  type: z.enum(['scroll', 'click']),
+  type: z.enum(['scroll', 'click', 'type', 'press', 'back', 'reload']),
   x: z.number().optional(),
   y: z.number().optional(),
   deltaX: z.number().optional(),
   deltaY: z.number().optional(),
+  text: z.string().max(2000).optional(),
+  key: z.string().max(40).optional(),
 });
 
 async function getOwnedSession(sessionId, userId) {
-  if (!mongoose.isValidObjectId(sessionId)) {
+  if (!isValidId(sessionId)) {
     const err = new Error('Invalid session ID');
     err.statusCode = 400;
     throw err;
@@ -61,7 +63,7 @@ async function getOwnedSession(sessionId, userId) {
 router.post('/sessions', validateBody(createSessionSchema), async (req, res, next) => {
   try {
     const { projectId, url, viewport, allowLoopbackForTest } = req.validatedBody;
-    if (!mongoose.isValidObjectId(projectId)) {
+    if (!isValidId(projectId)) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
     const project = await Project.findById(projectId);
@@ -216,6 +218,49 @@ router.post('/sessions/:id/navigate', validateBody(navigateSchema), async (req, 
   }
 });
 
+router.post('/sessions/:id/capture', async (req, res, next) => {
+  try {
+    const session = await getOwnedSession(req.params.id, req.user._id);
+    const projectChanges = await Change.find({ projectId: session.projectId }).lean();
+    const workerResult = await callWithRehydrate(session, [], () =>
+      browserClient.capturePage(session.workerSessionId, { patches: projectChanges })
+    );
+
+    const vp = VIEWPORTS[session.viewport] || VIEWPORTS.desktop;
+    const pageDoc = await Page.findOneAndUpdate(
+      { projectId: session.projectId, originalUrl: workerResult.url },
+      {
+        $set: {
+          title: workerResult.title,
+          viewport: { preset: session.viewport, width: vp.width, height: vp.height },
+          snapshotHtml: workerResult.snapshotHtml,
+          elements: workerResult.elements,
+          layers: workerResult.layers,
+          navLinks: workerResult.navLinks,
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    session.currentUrl = workerResult.url;
+    session.expiresAt = new Date(workerResult.expiresAt);
+    await session.save();
+
+    res.json({
+      session,
+      page: pageDoc,
+      snapshotHtml: workerResult.snapshotHtml,
+      elements: workerResult.elements,
+      layers: workerResult.layers,
+      navLinks: workerResult.navLinks,
+      replayResult: workerResult.replayResult,
+      thumbnail: workerResult.thumbnail,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/sessions/:id/viewport', validateBody(viewportSchema), async (req, res, next) => {
   try {
     const session = await getOwnedSession(req.params.id, req.user._id);
@@ -291,6 +336,10 @@ router.post('/sessions/:id/action', validateBody(actionSchema), async (req, res,
   try {
     const session = await getOwnedSession(req.params.id, req.user._id);
     const result = await browserClient.remoteAction(session.workerSessionId, req.validatedBody);
+    if (result.url && result.url !== session.currentUrl) {
+      session.currentUrl = result.url;
+      await session.save();
+    }
     res.json(result);
   } catch (err) {
     next(err);

@@ -1,5 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Revision } from '../models/Revision.js';
 import { Change } from '../models/Change.js';
@@ -7,6 +6,7 @@ import { Project } from '../models/Project.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireProjectOwner } from '../middleware/ownership.js';
 import { validateBody } from '../middleware/validate.js';
+import { isValidId } from '../utils/ids.js';
 
 const router = express.Router();
 
@@ -63,7 +63,7 @@ router.get('/projects/:id/revisions', requireAuth, requireProjectOwner, async (r
 router.post('/projects/:id/revisions/:revisionId/restore', requireAuth, requireProjectOwner, async (req, res, next) => {
   try {
     const { revisionId } = req.params;
-    if (!mongoose.isValidObjectId(revisionId)) {
+    if (!isValidId(revisionId)) {
       return res.status(400).json({ error: 'Invalid revision ID' });
     }
 

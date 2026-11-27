@@ -239,6 +239,66 @@ export class BrowserSessionManager {
     };
   }
 
+  async captureCurrentPage(sessionId, patches = []) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      const err = new Error('Browser session not found or expired.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    session.expiresAt = Date.now() + SESSION_TTL_MS;
+    const { page } = session;
+
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
+    await page.waitForTimeout(200);
+
+    const finalUrl = page.url();
+    await validateExternalUrl(finalUrl, {
+      allowLoopbackForTest: session.allowLoopbackForTest,
+    });
+    session.currentUrl = finalUrl;
+
+    const compat = await detectCompatibilityIssues(page, 200);
+    if (!compat.compatible) {
+      const err = new Error(compat.message);
+      err.statusCode = 422;
+      err.code = compat.code;
+      throw err;
+    }
+
+    const snapshot = await extractPageSnapshot(page, finalUrl);
+    const matchingPatches = Array.isArray(patches)
+      ? patches.filter((p) => !p.pageUrl || p.pageUrl === finalUrl)
+      : [];
+    const replayResult = await replayPatchesInPlaywright(page, matchingPatches);
+
+    const screenshotBuffer = await page.screenshot({
+      type: 'jpeg',
+      quality: 72,
+      fullPage: false,
+    });
+    const thumbnail = `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`;
+
+    session.lastSnapshot = snapshot;
+
+    return {
+      sessionId,
+      url: finalUrl,
+      title: snapshot.title,
+      viewport: session.viewport,
+      snapshotHtml: snapshot.snapshotHtml,
+      elements: snapshot.elements,
+      layers: snapshot.layers,
+      navLinks: snapshot.navLinks,
+      elementCount: snapshot.elementCount,
+      replayResult,
+      thumbnail,
+      expiresAt: new Date(session.expiresAt).toISOString(),
+    };
+  }
+
   async setViewport(sessionId, viewportName, patches = []) {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -288,6 +348,10 @@ export class BrowserSessionManager {
       throw err;
     }
     session.expiresAt = Date.now() + SESSION_TTL_MS;
+    const liveUrl = session.page.url();
+    if (liveUrl && liveUrl !== 'about:blank') {
+      session.currentUrl = liveUrl;
+    }
     const screenshotBuffer = await session.page.screenshot({ type: 'jpeg', quality: 70 });
     return {
       sessionId,
@@ -311,13 +375,42 @@ export class BrowserSessionManager {
       await page.mouse.wheel(Number(action.deltaX || 0), Number(action.deltaY || 0));
     } else if (action.type === 'click') {
       await page.mouse.click(Number(action.x || 0), Number(action.y || 0));
+      await page.waitForTimeout(150);
+      await page.waitForLoadState('domcontentloaded', { timeout: 2500 }).catch(() => {});
       await page.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
+    } else if (action.type === 'type') {
+      const text = typeof action.text === 'string' ? action.text : '';
+      if (text) {
+        await page.keyboard.type(text, { delay: 10 });
+      }
+    } else if (action.type === 'press') {
+      const key = typeof action.key === 'string' && action.key ? action.key : 'Enter';
+      await page.keyboard.press(key);
+      if (key === 'Enter') {
+        await page.waitForTimeout(150);
+        await page.waitForLoadState('domcontentloaded', { timeout: 2500 }).catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
+      }
+    } else if (action.type === 'back') {
+      await page.goBack({ waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+    } else if (action.type === 'reload') {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+    }
+
+    const liveUrl = page.url();
+    if (liveUrl && liveUrl !== 'about:blank') {
+      await validateExternalUrl(liveUrl, {
+        allowLoopbackForTest: session.allowLoopbackForTest,
+      });
+      session.currentUrl = liveUrl;
     }
 
     const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70 });
     return {
       sessionId,
-      url: page.url(),
+      url: session.currentUrl,
       frame: `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`,
     };
   }

@@ -4,8 +4,6 @@ import { Project } from '../models/Project.js';
 import { Page } from '../models/Page.js';
 import { Change } from '../models/Change.js';
 import { Revision } from '../models/Revision.js';
-import { Share } from '../models/Share.js';
-import { BrowserSession } from '../models/BrowserSession.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireProjectOwner } from '../middleware/ownership.js';
 import { validateBody } from '../middleware/validate.js';
@@ -65,7 +63,7 @@ router.get('/', async (req, res, next) => {
     }
 
     if (search && typeof search === 'string' && search.trim()) {
-      const q = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const q = search.trim();
       filter.$or = [
         { name: { $regex: q, $options: 'i' } },
         { originalUrl: { $regex: q, $options: 'i' } },
@@ -114,14 +112,7 @@ router.patch('/:id', requireProjectOwner, validateBody(updateProjectSchema), asy
 router.delete('/:id', requireProjectOwner, async (req, res, next) => {
   try {
     const projectId = req.project._id;
-    await Promise.all([
-      Page.deleteMany({ projectId }),
-      Change.deleteMany({ projectId }),
-      Revision.deleteMany({ projectId }),
-      Share.deleteMany({ projectId }),
-      BrowserSession.deleteMany({ projectId }),
-      Project.deleteOne({ _id: projectId }),
-    ]);
+    await Project.deleteOne({ _id: projectId });
     res.json({ deleted: true, projectId: projectId.toString() });
   } catch (err) {
     next(err);

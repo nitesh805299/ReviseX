@@ -77,6 +77,20 @@ export function createWorkerApp(sessionManager = new BrowserSessionManager()) {
     }
   });
 
+  app.post('/sessions/:sessionId/capture', async (req, res, next) => {
+    try {
+      const { patches } = z
+        .object({
+          patches: z.array(z.any()).optional(),
+        })
+        .parse(req.body || {});
+      const result = await sessionManager.captureCurrentPage(req.params.sessionId, patches || []);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   app.post('/sessions/:sessionId/viewport', async (req, res, next) => {
     try {
       const { viewport, patches } = z
@@ -123,11 +137,13 @@ export function createWorkerApp(sessionManager = new BrowserSessionManager()) {
     try {
       const action = z
         .object({
-          type: z.enum(['scroll', 'click']),
+          type: z.enum(['scroll', 'click', 'type', 'press', 'back', 'reload']),
           x: z.number().optional(),
           y: z.number().optional(),
           deltaX: z.number().optional(),
           deltaY: z.number().optional(),
+          text: z.string().max(2000).optional(),
+          key: z.string().max(40).optional(),
         })
         .parse(req.body);
       const result = await sessionManager.remoteAction(req.params.sessionId, action);

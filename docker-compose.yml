@@ -1,12 +1,4 @@
 services:
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - internal
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -44,7 +36,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - MONGO_URI=mongodb://mongo:27017/revisex
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL in .env}
       - REDIS_URL=redis://redis:6379
       - USE_BULLMQ=true
       - WORKER_URL=http://worker:4001
@@ -58,15 +50,11 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
       - S3_PUBLIC_URL=${S3_PUBLIC_URL:-}
     depends_on:
-      - mongo
       - redis
       - worker
     networks:
       - internal
       - egress
-
-volumes:
-  mongo_data:
 
 networks:
   internal:

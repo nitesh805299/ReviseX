@@ -51,7 +51,7 @@ export function EditorPage() {
     if (!socket || !session?._id) return;
 
     function onFrame(data) {
-      if (data?.frame) setStreamFrame(data.frame);
+      if (data?.frame) setStreamFrame(data.frame, data.url);
     }
 
     socket.on('stream-frame', onFrame);

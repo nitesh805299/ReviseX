@@ -106,6 +106,8 @@ export function buildInjectedEditorHtml(snapshotHtml, options = {}) {
   let editingEl = null;
   let baselineCaptured = false;
   const baselineMap = new Map();
+  const dirtyTextIds = new Set();
+  let didMoveElements = false;
 
   const overlayRoot = document.createElement('div');
   overlayRoot.id = 'revisex-overlay-root';
@@ -162,7 +164,9 @@ export function buildInjectedEditorHtml(snapshotHtml, options = {}) {
       const rxId = el.getAttribute('data-revisex-id');
       baselineMap.set(rxId, {
         text: el.textContent,
+        html: el.innerHTML,
         src: el.getAttribute('src'),
+        srcset: el.getAttribute('srcset'),
         alt: el.getAttribute('alt'),
         styleAttr: el.getAttribute('style') || '',
         parentId: el.parentElement ? el.parentElement.getAttribute('data-revisex-id') : null,
@@ -526,6 +530,16 @@ export function buildInjectedEditorHtml(snapshotHtml, options = {}) {
 
   function resetToBaseline() {
     captureBaselineOnce();
+    if (dirtyTextIds.size > 0) {
+      dirtyTextIds.forEach(function(rxId) {
+        const base = baselineMap.get(rxId);
+        const el = document.querySelector('[data-revisex-id="' + CSS.escape(rxId) + '"]');
+        if (el && base && typeof base.html === 'string') {
+          el.innerHTML = base.html;
+        }
+      });
+      dirtyTextIds.clear();
+    }
     baselineMap.forEach(function(base, rxId) {
       const el = document.querySelector('[data-revisex-id="' + CSS.escape(rxId) + '"]');
       if (!el) return;
@@ -533,11 +547,30 @@ export function buildInjectedEditorHtml(snapshotHtml, options = {}) {
       else el.removeAttribute('style');
       if (el.tagName === 'IMG') {
         if (base.src !== null) el.setAttribute('src', base.src);
+        if (base.srcset !== null) el.setAttribute('srcset', base.srcset);
+        else el.removeAttribute('srcset');
         if (base.alt !== null) el.setAttribute('alt', base.alt);
-      } else if (getEditableType(el) === 'text' && base.text !== null) {
-        el.textContent = base.text;
       }
     });
+    if (didMoveElements) {
+      Array.from(baselineMap.entries()).reverse().forEach(function(entry) {
+        const rxId = entry[0];
+        const base = entry[1];
+        if (!base.parentId) return;
+        const el = document.querySelector('[data-revisex-id="' + CSS.escape(rxId) + '"]');
+        const parent = document.querySelector('[data-revisex-id="' + CSS.escape(base.parentId) + '"]');
+        if (!el || !parent) return;
+        const nextSib = base.nextSiblingId
+          ? document.querySelector('[data-revisex-id="' + CSS.escape(base.nextSiblingId) + '"]')
+          : null;
+        if (nextSib && nextSib.parentElement === parent) {
+          parent.insertBefore(el, nextSib);
+        } else {
+          parent.appendChild(el);
+        }
+      });
+      didMoveElements = false;
+    }
   }
 
   function applyPatches(patches) {
@@ -549,7 +582,10 @@ export function buildInjectedEditorHtml(snapshotHtml, options = {}) {
       if (!el) return;
       if (patch.type === 'text') {
         const val = typeof patch.proposedValue === 'object' ? patch.proposedValue.text : patch.proposedValue;
-        if (typeof val === 'string') el.textContent = val;
+        if (typeof val === 'string') {
+          dirtyTextIds.add(patch.elementId);
+          el.textContent = val;
+        }
       } else if (patch.type === 'image') {
         const src = typeof patch.proposedValue === 'object' ? patch.proposedValue.src : patch.proposedValue;
         const alt = typeof patch.proposedValue === 'object' ? patch.proposedValue.alt : undefined;
@@ -568,14 +604,16 @@ export function buildInjectedEditorHtml(snapshotHtml, options = {}) {
         const dir = patch.proposedValue && patch.proposedValue.direction;
         const parent = el.parentElement;
         if (parent && dir === 'up' && el.previousElementSibling) {
+          didMoveElements = true;
           parent.insertBefore(el, el.previousElementSibling);
         } else if (parent && dir === 'down' && el.nextElementSibling) {
+          didMoveElements = true;
           parent.insertBefore(el.nextElementSibling, el);
         }
       }
     });
 
-    if (selectedEl) {
+    if (selectedEl && currentMode === 'edit') {
       positionBox(selectBox, selectedEl);
       window.parent.postMessage({ type: 'REVISEX_ELEMENT_SELECTED', payload: serializeElement(selectedEl) }, '*');
     }

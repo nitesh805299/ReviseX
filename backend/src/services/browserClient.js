@@ -67,6 +67,10 @@ export const browserClient = {
     return callWorkerHttp(`/sessions/${encodeURIComponent(sessionId)}/navigate`, 'POST', payload);
   },
 
+  async capturePage(sessionId, payload = {}) {
+    return callWorkerHttp(`/sessions/${encodeURIComponent(sessionId)}/capture`, 'POST', payload);
+  },
+
   async setViewport(sessionId, payload) {
     return callWorkerHttp(`/sessions/${encodeURIComponent(sessionId)}/viewport`, 'POST', payload);
   },

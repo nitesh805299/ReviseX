@@ -5,13 +5,13 @@ ReviseX allows non-technical website owners and clients to visually click and su
 ## Architecture
 
 - **`frontend/`**: React 19, Vite, Tailwind CSS, Zustand, React Router, Axios, Lucide Icons, Socket.IO Client
-- **`backend/`**: Node.js, Express, MongoDB/Mongoose, JWT + bcrypt, Zod validation, Helmet CSP, Rate Limiting, Socket.IO, S3-compatible asset storage (with local `/uploads` fallback)
+- **`backend/`**: Node.js, Express, PostgreSQL (Neon-compatible), JWT + bcrypt, Zod validation, Helmet CSP, Rate Limiting, Socket.IO, S3-compatible asset storage (with local `/uploads` fallback)
 - **`worker/`**: Isolated Playwright + Chromium browser rendering service with SSRF protection, DNS/IP validation, outgoing request interception, sanitized DOM snapshot extraction, element fingerprinting, and patch replay
 - **`shared/`**: Shared viewport presets, allowed style properties, and element fingerprint matching engine
 
 ## Local Development
 
-1. Copy `.env.example` to `.env` (in `backend/` and `worker/` if customizing ports/URIs).
+1. Copy `.env.example` to `backend/.env`, then set `DATABASE_URL` to your Neon PostgreSQL connection string from **Neon Dashboard → Connect**. Use the pooled connection string with `sslmode=require`; never commit your credentials.
 2. Install dependencies:
    ```bash
    npm --prefix worker install
@@ -34,14 +34,18 @@ npm run test:backend
 npm run build:frontend
 ```
 
+Backend integration tests use an in-memory PostgreSQL-compatible database and do not require Neon credentials.
+
 ## Production Deployment
 
 - **Frontend (Vercel)**: Deploy `frontend/` with `VITE_API_URL=https://api.yourdomain.com/api` and `VITE_SOCKET_URL=https://api.yourdomain.com`. `frontend/vercel.json` handles SPA rewrites.
 - **Backend & Browser Worker (Docker Compose)**:
-  Set `JWT_SECRET`, `WORKER_SHARED_SECRET`, `FRONTEND_URL`, and optional `MONGO_URI` / `S3_*` variables, then run:
+  Set `DATABASE_URL` (Neon pooled connection string), `JWT_SECRET`, `WORKER_SHARED_SECRET`, `FRONTEND_URL`, and optional `S3_*` variables in the root `.env`, then run:
   ```bash
   docker compose up --build -d
   ```
+- The backend applies its versioned PostgreSQL schema migration when it starts.
+- This creates the PostgreSQL schema; existing MongoDB records are not copied automatically.
 - **Security Notes**:
   - Original websites are never modified automatically.
   - All URLs and subresource requests inside Chromium are validated against loopback, private, and cloud metadata IP ranges.

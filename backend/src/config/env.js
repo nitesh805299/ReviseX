@@ -4,8 +4,10 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
-  MONGO_URI: z.string().optional(),
-  USE_INMEMORY_MONGO: z.string().optional(),
+  DATABASE_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().url().optional()
+  ),
   JWT_SECRET: z.string().min(16).optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
